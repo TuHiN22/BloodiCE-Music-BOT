@@ -17,6 +17,30 @@ module.exports.data = {
 
 //====================================================================//
 
+function getErrorMessage(error) {
+	if (!error) return "Unknown error";
+	if (error instanceof Error) return error.message || "Unknown error";
+	if (typeof error === "string") return error;
+
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return String(error);
+	}
+}
+
+function formatErrorDetails(error) {
+	if (!error) return "Unknown error";
+	if (error instanceof Error) return error.stack || error.message || "Unknown error";
+	if (typeof error === "string") return error;
+
+	try {
+		return JSON.stringify(error, null, 2);
+	} catch {
+		return String(error);
+	}
+}
+
 function validURL(str) {
 	try {
 		new URL(str);
@@ -52,7 +76,7 @@ async function buildImageInWorker(searchPlayer, query) {
 		});
 
 		worker.on("error", (error) => {
-			logger.error(`Worker encountered an error: ${JSON.stringify(error)}`);
+			logger.error(`Worker encountered an error: ${formatErrorDetails(error)}`);
 			reject(error);
 		});
 
@@ -163,16 +187,34 @@ async function handlePlayRequest(interaction, query, lang, options, player) {
 		});
 
 		if (!Player.connection) await Player.connect(interaction?.member?.voice?.channel ?? options?.voice);
-		let reqPlayOK = false;
-		if (!!query) reqPlayOK = await Player.play(query, interaction?.user);
+		let playError = null;
+		const onPlayerError = (error) => {
+			if (!playError && error) playError = error;
+		};
+		Player.once("playerError", onPlayerError);
 
-		if (!reqPlayOK) throw new Error("Play request failed");
+		let reqPlayOK = false;
+		try {
+			if (!!query) {
+				reqPlayOK = await Player.play(query, interaction?.user);
+			} else {
+				// Allow connection-only flow (e.g. /voice join or assistant mode without query).
+				reqPlayOK = true;
+			}
+		} finally {
+			if (typeof Player.off === "function") {
+				Player.off("playerError", onPlayerError);
+			}
+		}
+
+		if (!reqPlayOK) {
+			throw new Error(playError ? getErrorMessage(playError) : "Play request failed");
+		}
 
 		await cleanUpInteraction(interaction, player);
 		logger.debug("Track played successfully");
 	} catch (e) {
-		console.log(e);
-		logger.error(`Error in handlePlayRequest:  ${JSON.stringify(e)}`);
+		logger.error(`Error in handlePlayRequest: ${formatErrorDetails(e)}`);
 		await handleError(interaction, lang);
 	}
 }

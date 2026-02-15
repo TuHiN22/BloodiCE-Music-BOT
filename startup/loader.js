@@ -11,10 +11,52 @@ class StartupLoader {
 		this.logger = logger;
 	}
 
+	getMusicModeConfig() {
+		return this.config?.MusicBotMode ?? {};
+	}
+
+	isMusicModeEnabled() {
+		return this.getMusicModeConfig().enabled === true;
+	}
+
+	getAllowedFoldersForRoot(rootName) {
+		const mode = this.getMusicModeConfig();
+		switch (rootName) {
+			case "commands":
+				return mode.keepCommandFolders;
+			case "functions":
+				return mode.keepFunctionFolders;
+			case "extensions":
+				return mode.keepExtensionFolders;
+			default:
+				return null;
+		}
+	}
+
+	isFolderAllowed(rootName, folderName) {
+		if (!this.isMusicModeEnabled()) return true;
+		const allowedFolders = this.getAllowedFoldersForRoot(rootName);
+		if (!Array.isArray(allowedFolders)) return true;
+		return allowedFolders.includes(folderName);
+	}
+
+	isEventFileAllowed(eventGroup, relativePath, fileName) {
+		if (!this.isMusicModeEnabled()) return true;
+		const keepEventFiles = this.getMusicModeConfig()?.keepEventFiles;
+		const allowList = keepEventFiles?.[eventGroup];
+
+		if (!Array.isArray(allowList)) return true;
+		if (allowList.length === 0) return false;
+
+		const normalizedRelativePath = relativePath.replace(/\\/g, "/");
+		return allowList.includes(fileName) || allowList.includes(normalizedRelativePath);
+	}
+
 	async loadFiles(directory, collection) {
 		try {
 			const items = await fsPromises.readdir(directory, { withFileTypes: true });
 			const clientCommands = [];
+			const rootName = path.basename(directory);
 
 			await Promise.all(
 				items.map(async (item) => {
@@ -22,10 +64,27 @@ class StartupLoader {
 					let files = [];
 
 					if (item.isDirectory()) {
+						if (!this.isFolderAllowed(rootName, item.name)) {
+							clientCommands.push([chalk.hex("#4733FF")(item.name), "No"]);
+							return;
+						}
+
 						// Nếu là thư mục, đọc các file .js trong thư mục đó
 						const dirFiles = await fsPromises.readdir(itemPath);
 						files = dirFiles.filter((file) => file.endsWith(".js")).map((file) => path.join(itemPath, file));
 					} else if (item.isFile() && item.name.endsWith(".js")) {
+						if (this.isMusicModeEnabled()) {
+							const allowedFolders = this.getAllowedFoldersForRoot(rootName);
+							if (Array.isArray(allowedFolders)) {
+								const allowedRootFiles = this.getMusicModeConfig()?.keepRootFiles?.[rootName];
+								const canLoadRootFile = Array.isArray(allowedRootFiles) && allowedRootFiles.includes(item.name);
+								if (!canLoadRootFile) {
+									clientCommands.push([chalk.hex("#4733FF")(item.name), "No"]);
+									return;
+								}
+							}
+						}
+
 						// Nếu là file .js trực tiếp, thêm vào danh sách
 						files = [itemPath];
 					}
@@ -78,6 +137,7 @@ class StartupLoader {
 
 	async loadEvents(directory, target) {
 		const clientEvents = [];
+		const eventGroup = path.basename(directory);
 		const traverse = async (dir) => {
 			const files = await fsPromises.readdir(dir, { withFileTypes: true });
 
@@ -91,6 +151,12 @@ class StartupLoader {
 					}
 
 					if (!file.isFile() || !file.name.endsWith(".js")) {
+						return;
+					}
+
+					const relativePath = path.relative(directory, filePath);
+					if (!this.isEventFileAllowed(eventGroup, relativePath, file.name)) {
+						clientEvents.push([chalk.hex("#4733FF")(file.name), "No"]);
 						return;
 					}
 

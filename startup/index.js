@@ -2,10 +2,6 @@ const { StartupLoader } = require("./loader.js");
 const { LoggerFactory } = require("./logger.js");
 const { useHooks } = require("zihooks");
 const { Collection } = require("discord.js");
-const express = require("express");
-const cors = require("cors");
-const http = require("http");
-const WebSocket = require("ws");
 
 class StartupManager {
 	constructor(client) {
@@ -30,26 +26,8 @@ class StartupManager {
 	}
 
 	initWeb() {
-		this.logger.debug?.("Starting web...");
-		const app = express();
-		const server = http.createServer(app);
-		const wss = new WebSocket.Server({ server });
-
-		app.use(
-			cors({
-				origin: process.env.CORS ?? "*",
-				methods: ["GET", "POST"],
-				credentials: true,
-			}),
-		);
-
-		app.use(express.json());
-
-		server.listen(process.env.SERVER_PORT || 2003, () => {
-			this.logger.info(`Server running on port ${process.env.SERVER_PORT || 2003}`);
-		});
-
-		return { server: app, wss };
+		this.logger.debug?.("Web runtime disabled in music-only mode.");
+		return { server: null, wss: null };
 	}
 
 	getConfig() {
@@ -83,8 +61,8 @@ class StartupManager {
 		useHooks.set("functions", new Collection()); // Functions
 		useHooks.set("extensions", new Collection()); // Extensions
 		useHooks.set("logger", this.logger); // LoggerFactory
-		useHooks.set("wss", this.web.wss); // WebSocket Server
-		useHooks.set("server", this.web.server); // Web Server
+		useHooks.set("wss", this.web?.wss ?? null); // WebSocket Server
+		useHooks.set("server", this.web?.server ?? null); // Web Server
 	}
 }
 
