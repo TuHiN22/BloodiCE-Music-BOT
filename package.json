@@ -69,7 +69,7 @@
 		"winston": "^3.17.0",
 		"ws": "^8.18.0",
 		"zihooks": "^2.0.0",
-		"ziplayer": "^0.2.3"
+		"ziplayer": "^0.3.0"
 	},
 	"devDependencies": {
 		"cross-env": "^10.0.0",
