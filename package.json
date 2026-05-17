@@ -32,7 +32,7 @@
 		"@iamtraction/google-translate": "^2.0.1",
 		"@ngrok/ngrok": "^1.7.0",
 		"@snazzah/davey": "^0.1.6",
-		"@zibot/db": "^0.0.2",
+		"@zibot/db": "^0.0.3",
 		"@zibot/ziencryptor": "^0.0.1",
 		"@ziplayer/extension": "^0.1.1",
 		"@ziplayer/plugin": "^0.1.52",
